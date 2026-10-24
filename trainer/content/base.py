@@ -23,6 +23,7 @@ class Question:
     formula: Optional[str] = None
     figure: Optional[bytes] = None
     lo: str = ""
+    keypoints: Optional[list] = None   # explanation items: [{"label": idea, "any": [phrasings...]}] for typed answers
 
     def shuffled(self, rng: random.Random) -> "Question":
         """Same question, options in a new order (used when a recall question is re-served)."""
@@ -157,7 +158,8 @@ def _register_one(item, chapter):
         opts, key, mis = text_options(rng, correct, wrongs)
         return dict(stem=stem, options=opts, key=key, misconceptions=mis, hints=v.get("hints", item["hints"]),
                     working=v.get("working", item.get("working", [f"Correct answer: **{correct}**"])),
-                    formula=item.get("formula"), figure=fig(rng) if callable(fig) else fig)
+                    formula=item.get("formula"), figure=fig(rng) if callable(fig) else fig,
+                    keypoints=v.get("keypoints", item.get("keypoints")))
 
 
 def md_table(headers, rows):

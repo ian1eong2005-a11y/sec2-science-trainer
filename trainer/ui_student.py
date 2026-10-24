@@ -7,7 +7,10 @@ import streamlit as st
 from .config import CATEGORIES, CHAPTERS, DOWN_STREAK, EXPLAIN_LEVEL_NAMES, LEVEL_NAMES, UP_STREAK
 from .content import TEMPLATES
 from .engine import apply_first_attempt, levels_available, repeat_until_correct, select_template
+from .marking import mark_answer
 from .store import Attempt
+
+WRITE_FROM_LEVEL = 3      # explanation questions at this level and above are first answered in the student's own words
 
 _rng = random.Random()
 
@@ -25,6 +28,7 @@ def _serve(store, rec, cat, chapters):
     st.session_state["qs"] = dict(
         cat=cat, question=q, level=state.level, phase="answer", wrong=set(), hints_shown=0, hints_used=0,
         formula_shown=False, chat=[], event=None, retry_correct=False, serial=_rng.randrange(1 << 30), served_at=time.time(),
+        mode="write" if (cat == "explain" and q.level >= WRITE_FROM_LEVEL) else "choose", typed="",
     )
     store.touch(rec.key)
     return st.session_state["qs"]
@@ -56,6 +60,30 @@ def _answer(store, rec, letter):
                 qs["chat"].append(("tutor", f"Still not it. You chose **{letter}**. " + q.misconceptions.get(letter, "Think again about the definition.")))
             else:
                 qs["phase"] = "revealed"
+    store.touch(rec.key)
+
+
+def _check_typed(store, rec, text):
+    """First attempt given in the student's own words. Every key idea present -> correct; otherwise the tutor says
+    which ideas are missing and the student retries with the options (no streak credit, as for any retry)."""
+    qs = _qs()
+    q, cat = qs["question"], qs["cat"]
+    state = rec.states[cat]
+    hits, total, missing, ok = mark_answer(text, q.keypoints, q.options[q.key])
+    qs["typed"] = text
+    qs["event"] = apply_first_attempt(state, ok)
+    store.log_attempt(rec.key, Attempt(time.time(), cat, q.template_id, q.chapter, qs["level"], "typed", q.key, ok, False, 0))
+    if ok:
+        qs["phase"] = "solved"
+        qs["chat"] = [("tutor", f"Your answer covers all {total} key idea{'s' if total > 1 else ''}. Wording does not have to match the model answer.")]
+    else:
+        qs["phase"] = "hints"
+        qs["mode"] = "choose"
+        if q.keypoints:
+            got = f"You have {hits} of {total} key ideas. " if hits else "None of the key ideas came through yet. "
+            qs["chat"] = [("tutor", got + "Still missing: " + "; ".join(f"**{m}**" for m in missing) + ". Use the hints, then choose the best option below.")]
+        else:
+            qs["chat"] = [("tutor", "Your answer does not yet say the main idea the question is looking for. Use the hints, then choose the best option below.")]
     store.touch(rec.key)
 
 
@@ -124,6 +152,32 @@ def render_student(store, rec):
 
     phase = qs["phase"]
     answering = phase in ("answer", "retry")
+
+    # ---- own-words answer first (explanation questions from L3 up)
+    if qs.get("mode") == "write" and phase == "answer":
+        st.markdown("**Answer in your own words.** Exact wording is not needed: the checker looks for the key ideas.")
+        typed = st.text_area("Your answer", value=qs.get("typed", ""), height=110, key=f"typed_{qs['serial']}", label_visibility="collapsed",
+                             placeholder="Write one or two sentences…")
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            if st.button("✔ Check my answer", type="primary", width="stretch", key=f"check_{qs['serial']}", disabled=len(typed.strip()) < 8):
+                _check_typed(store, rec, typed)
+                st.rerun()
+        with c2:
+            if st.button("Show the options instead", width="stretch", key=f"opts_{qs['serial']}"):
+                qs["mode"] = "choose"
+                st.rerun()
+        if q.keypoints:
+            st.caption(f"The checker is looking for {len(q.keypoints)} key idea{'s' if len(q.keypoints) > 1 else ''}.")
+        return
+
+    if qs.get("mode") == "write" and phase == "solved" and qs.get("typed"):
+        with st.chat_message("user"):
+            st.markdown(qs["typed"])
+        for role, text in qs["chat"]:
+            with st.chat_message("assistant"):
+                st.markdown(text)
+
     for letter, text in q.options.items():
         disabled = (not answering) or (letter in qs["wrong"])
         label = f"**{letter}**&nbsp;&nbsp; {text}"
@@ -164,6 +218,9 @@ def render_student(store, rec):
             st.rerun()
 
     elif phase == "hints":
+        if qs.get("typed"):
+            with st.chat_message("user"):
+                st.markdown(qs["typed"])
         _tutor_panel(store, rec, qs, q)
 
     elif phase == "retry":

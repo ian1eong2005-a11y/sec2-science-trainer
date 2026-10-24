@@ -10,7 +10,7 @@ from trainer.content import TEMPLATES
 
 PNG = b"\x89PNG\r\n\x1a\n"
 SEEDS = list(range(20))
-PER_LEVEL = 5          # templates per level per category per chapter (10 per level per chapter in total)
+PER_LEVEL = {"calc": 5, "explain": 10}   # templates per level per chapter (15 per level per chapter in total)
 
 
 def test_inventory():
@@ -19,7 +19,8 @@ def test_inventory():
     for ch in CHAPTERS:
         for cat in ("calc", "explain"):
             levels = Counter(t.level for t in TEMPLATES if t.chapter == ch and t.category == cat)
-            assert levels == {1: PER_LEVEL, 2: PER_LEVEL, 3: PER_LEVEL, 4: PER_LEVEL, 5: PER_LEVEL}, f"Ch {ch} {cat}: {dict(levels)}"
+            n = PER_LEVEL[cat]
+            assert levels == {1: n, 2: n, 3: n, 4: n, 5: n}, f"Ch {ch} {cat}: {dict(levels)}"
 
 
 @pytest.mark.parametrize("tpl", TEMPLATES, ids=lambda t: t.id)

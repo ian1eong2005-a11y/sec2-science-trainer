@@ -9,8 +9,12 @@ Streamlit app, no database. Built from the G3 Physics trainer (same engine, new 
 
 - Students log in with **name + class** (no password). Teacher view is password protected.
 - Two categories: **Calculation & data** (200 parametrised templates: numbers change every serve, diagrams drawn to match)
-  and **Explanation** (200 items; many have several variants, options always shuffled).
-- Each chapter has **10 templates per level** (5 of each category at L1–L5), 400 in all.
+  and **Explanation** (400 items adapted from the chapter worksheets and tests; many have several variants, options always shuffled).
+- Each chapter has **15 templates per level** (5 calculation + 10 explanation at L1–L5), 600 in all.
+- **Own-words answers:** explanation questions from L3 up are first answered in the student's own words. A scripted checker
+  (`trainer/marking.py`, no LLM) looks for the question's **key ideas**, accepting rephrasing: synonyms, different word order,
+  different word endings. All ideas present → correct; otherwise the tutor names the missing ideas and the student retries with
+  the options (no streak credit, as for any retry). Students can also skip straight to the options.
 - **5 correct in a row → level up. 3 wrong in a row → level down.** Everyone starts at L1.
 - A wrong answer opens the scripted **tutor**: a message about the chosen option, up to 3 hints, the formula / key fact on request,
   then one retry (correct retries never count towards the streak). Explanation L1 questions come back, reshuffled, until answered correctly.
@@ -67,13 +71,19 @@ def my_question(rng):
                 figure=S.bar_chart(...))          # or put a markdown table in the stem
 ```
 
-Explanation: add a dict to the chapter's `EXPLAIN` list.
+Explanation: add a dict to the chapter's `EXPLAIN` list (`chNN.py` or `chNNb.py`).
 
 ```python
 dict(id="e10_my_item", level=3, lo="10.4",
      stem="...", correct="...", wrongs={"wrong text": "why it is wrong", ...},
-     hints=[h1, h2, h3], fig=lambda rng: S.room_heater("floor")),   # optional variants=[{stem, correct, wrongs, fig?}, ...]
+     hints=[h1, h2, h3], fig=lambda rng: S.room_heater("floor"),   # optional variants=[{stem, correct, wrongs, fig?}, ...]
+     keypoints=[KP("warmer air is less dense", "less dense", "lower density", "lighter"),
+                KP("so it rises", "rise", "goes up")]),              # for own-words answers: each idea = label + accepted phrasings
 ```
+
+A key idea is credited when ANY of its phrasings is found in the answer (all the phrasing's content words present, any order,
+any word endings; a 5+ letter word also matches a longer word that starts with it). Items without `keypoints` fall back to
+matching most of the correct option's content words. `tests/test_marking.py` shows what is accepted.
 
 Diagram drawers live in `trainer/sketches.py` (charts, food webs, circuits, pH scale, thermometer, calendar, …) and `trainer/figs.py`
 (graphs, force diagrams, blocks). Keep the per-level counts at 5 + 5 per chapter (or change `PER_LEVEL` in `tests/test_content.py`),

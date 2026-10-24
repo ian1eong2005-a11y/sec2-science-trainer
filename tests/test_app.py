@@ -114,3 +114,25 @@ def test_teacher_dashboard_lists_students(at):
     next(b for b in at.button if b.label == "Open dashboard").click(); at.run()
     assert at.session_state["teacher_ok"]
     assert not at.exception
+
+
+def test_own_words_answer_marked_on_key_ideas(at):
+    login(at, name="Eve Tan")
+    at.radio[0].set_value("explain"); at.run()
+    from trainer.store import get_store
+    rec = get_store().get(at.session_state["student_key"])
+    rec.states["explain"].level = 4                     # own-words mode starts at L3
+    del at.session_state["qs"]; at.run()
+    qs = at.session_state["qs"]; q = qs["question"]
+    assert qs["mode"] == "write"
+    box = next(t for t in at.text_area if t.key and t.key.startswith("typed_"))
+    box.input(q.options[q.key]); at.run()                # the model answer, reworded or not, must be accepted
+    next(b for b in at.button if b.key and b.key.startswith("check_")).click(); at.run()
+    assert at.session_state["qs"]["phase"] == "solved" and rec.states["explain"].correct_streak == 1
+    next(b for b in at.button if b.key and b.key.startswith("next_")).click(); at.run()
+    box = next(t for t in at.text_area if t.key and t.key.startswith("typed_"))
+    box.input("I have no idea what this is about at all"); at.run()
+    next(b for b in at.button if b.key and b.key.startswith("check_")).click(); at.run()
+    qs = at.session_state["qs"]
+    assert qs["phase"] == "hints" and qs["mode"] == "choose" and rec.states["explain"].wrong_streak == 1
+    assert option_buttons(at) and not at.exception
