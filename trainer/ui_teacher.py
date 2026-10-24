@@ -46,6 +46,17 @@ def render_teacher(store):
         rows = store.rows()
         names = {r["_key"]: f"{r['Name']} ({r['Class']})" for r in rows}
         pick = st.selectbox("Student", list(names), format_func=names.get, index=None, placeholder="choose a student")
+        l1, l2, l3 = st.columns([2, 2, 1])
+        with l1:
+            cat = st.selectbox("Category", list(CATEGORIES), format_func=CATEGORIES.get, key="admin_cat")
+        with l2:
+            lvl = st.selectbox("Level", list(range(1, MAX_LEVEL + 1)), format_func=lambda v: f"L{v}", key="admin_level")
+        with l3:
+            st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
+            if st.button("Set level", disabled=pick is None, width="stretch"):
+                store.set_level(pick, cat, lvl)
+                st.rerun()
+        st.caption("Set level moves a student straight to that level (streaks reset). Own-words answers appear for Explanation from L3.")
         c1, c2 = st.columns(2)
         with c1:
             if st.button("Reset this student", disabled=pick is None, width="stretch"):

@@ -133,6 +133,9 @@ def render_student(store, rec):
     st.caption(names[state.level])
     st.markdown(_streak_strip(state), unsafe_allow_html=True)
 
+    if cat == "explain" and state.level < WRITE_FROM_LEVEL:
+        st.caption(f"From L{WRITE_FROM_LEVEL} you will answer explanation questions in your own words first.")
+
     top = max(levels_available(TEMPLATES, cat))
     if state.level > top:
         st.info(f"You have cleared all the {CATEGORIES[cat].lower()} levels available so far (up to L{top}). More are on the way; keep practising at L{top}.")

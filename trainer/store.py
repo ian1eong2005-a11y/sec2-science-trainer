@@ -91,6 +91,17 @@ class LiveStore:
         with self._lock:
             self.students.pop(key, None)
 
+    def set_level(self, key: Key, category: str, level: int) -> None:
+        """Teacher override (e.g. to preview a level): streaks reset so the normal rules apply from there."""
+        with self._lock:
+            rec = self.students.get(key)
+            if rec and category in rec.states:
+                st = rec.states[category]
+                st.level = level
+                st.best_level = max(st.best_level, level)
+                st.correct_streak = st.wrong_streak = 0
+                rec.current.pop(category, None)
+
     def clear(self) -> None:
         with self._lock:
             self.students.clear()
